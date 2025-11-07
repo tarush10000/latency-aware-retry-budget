@@ -1,0 +1,49 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: latency-aware-retry-budget
+  data:
+    redis:
+        host: localhost
+        port: 6379
+        timeout: 2000ms
+        lettuce:
+            pool:
+                max-active: 8
+                max-idle: 8
+                min-idle: 0
+
+retry:
+  budget:
+    base-budget: 5
+    evaluation-window-seconds: 60
+    update-interval-seconds: 10
+    latency-thresholds:
+      healthy-p95-ms: 200
+      degraded-p95-ms: 300
+      critical-p99-ms: 800
+    error-rate-thresholds:
+      warning-percent: 5.0
+      critical-percent: 10.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+      base-path: /actuator
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+      tags:
+        application: ${spring.application.name}
+
+logging:
+  level:
+    com.retry.budget: INFO
+    org.springframework: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
