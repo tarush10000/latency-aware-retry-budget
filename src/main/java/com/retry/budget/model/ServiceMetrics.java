@@ -25,6 +25,8 @@ public class ServiceMetrics {
     @Builder.Default
     private List<Long> latencies = new ArrayList<>();
     
+    private LatencyStats latencyStats;
+    
     private LocalDateTime lastUpdated;
     private LocalDateTime windowStart;
     private LocalDateTime windowEnd;
@@ -34,6 +36,10 @@ public class ServiceMetrics {
             this.latencies = new ArrayList<>();
         }
         this.latencies.add(latencyMs);
+        
+        if (this.latencies.size() > 1000) {
+            this.latencies = new ArrayList<>(this.latencies.subList(this.latencies.size() - 1000, this.latencies.size()));
+        }
     }
     
     public void incrementTotalRequests() {

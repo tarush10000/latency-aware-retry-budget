@@ -47,7 +47,7 @@ public class DemoClientService {
                     long duration = System.currentTimeMillis() - startTime;
                     logRequest(serviceName, false, duration, retryCount, "BUDGET_EXCEEDED", attemptLogs);
 
-                    throw new RetryBudgetExceededException("Retry budget exceeded for " + serviceName);
+                    throw new RetryBudgetExceededException(serviceName, retryCount);
                 }
 
                 if (decision == RetryDecision.DEFER && retryCount > 0) {

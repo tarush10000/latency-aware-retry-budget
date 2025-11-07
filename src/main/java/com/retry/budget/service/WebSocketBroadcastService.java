@@ -18,10 +18,7 @@ public class WebSocketBroadcastService {
     private final MetricsAggregator metricsAggregator;
     private final RetryBudgetControllerService retryBudgetService;
 
-    /**
-     * Broadcast dashboard updates every second
-     */
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedRate = 2000)
     public void broadcastDashboardUpdates() {
         try {
             Map<String, Object> update = new HashMap<>();
@@ -29,15 +26,19 @@ public class WebSocketBroadcastService {
             String[] services = {"healthy-service", "degraded-service", "critical-service", "intermittent-service"};
 
             for (String service : services) {
-                Map<String, Object> serviceData = new HashMap<>();
+                try {
+                    Map<String, Object> serviceData = new HashMap<>();
 
-                var metrics = metricsAggregator.getMetrics(service);
-                var budget = retryBudgetService.getBudget(service);
+                    var metrics = metricsAggregator.getMetrics(service);
+                    var budget = retryBudgetService.getBudget(service);
 
-                serviceData.put("metrics", metrics);
-                serviceData.put("budget", budget);
+                    serviceData.put("metrics", metrics);
+                    serviceData.put("budget", budget);
 
-                update.put(service, serviceData);
+                    update.put(service, serviceData);
+                } catch (Exception e) {
+                    log.warn("Error getting data for service {}: {}", service, e.getMessage());
+                }
             }
 
             update.put("timestamp", System.currentTimeMillis());
@@ -45,19 +46,20 @@ public class WebSocketBroadcastService {
             messagingTemplate.convertAndSend("/topic/dashboard", update);
 
         } catch (Exception e) {
-            log.error("Error broadcasting dashboard updates", e);
+            log.error("Error broadcasting dashboard updates: {}", e.getMessage());
         }
     }
 
-    /**
-     * Broadcast a specific event
-     */
     public void broadcastEvent(String eventType, Object data) {
-        Map<String, Object> event = new HashMap<>();
-        event.put("type", eventType);
-        event.put("data", data);
-        event.put("timestamp", System.currentTimeMillis());
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("type", eventType);
+            event.put("data", data);
+            event.put("timestamp", System.currentTimeMillis());
 
-        messagingTemplate.convertAndSend("/topic/events", event);
+            messagingTemplate.convertAndSend("/topic/events", event);
+        } catch (Exception e) {
+            log.error("Error broadcasting event: {}", e.getMessage());
+        }
     }
 }

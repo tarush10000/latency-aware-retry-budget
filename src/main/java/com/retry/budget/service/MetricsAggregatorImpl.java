@@ -1,6 +1,7 @@
 package com.retry.budget.service;
 
 import com.retry.budget.config.RetryBudgetConfig;
+import com.retry.budget.model.LatencyStats;
 import com.retry.budget.model.ServiceMetrics;
 import com.retry.budget.repository.MetricsRepository;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -14,13 +15,16 @@ public class MetricsAggregatorImpl implements MetricsAggregator {
     private final MetricsRepository metricsRepository;
     private final MeterRegistry meterRegistry;
     private final RetryBudgetConfig config;
+    private final LatencyAnalyzer latencyAnalyzer;
     
     public MetricsAggregatorImpl(MetricsRepository metricsRepository,
                                  MeterRegistry meterRegistry,
-                                 RetryBudgetConfig config) {
+                                 RetryBudgetConfig config,
+                                 LatencyAnalyzer latencyAnalyzer) {
         this.metricsRepository = metricsRepository;
         this.meterRegistry = meterRegistry;
         this.config = config;
+        this.latencyAnalyzer = latencyAnalyzer;
     }
     
     @Override
@@ -45,10 +49,15 @@ public class MetricsAggregatorImpl implements MetricsAggregator {
         metrics.calculateErrorRate();
         metrics.setLastUpdated(LocalDateTime.now());
         
+        LatencyStats latencyStats = latencyAnalyzer.analyzeLatency(metrics);
+        metrics.setLatencyStats(latencyStats);
+        
         metricsRepository.saveMetrics(metrics);
         
-        meterRegistry.gauge("retry.budget.latency", metrics.getLatencies().stream()
-                .mapToLong(Long::longValue).average().orElse(0.0));
+        if (!metrics.getLatencies().isEmpty()) {
+            meterRegistry.gauge("retry.budget.latency", metrics.getLatencies().stream()
+                    .mapToLong(Long::longValue).average().orElse(0.0));
+        }
     }
     
     @Override
@@ -74,6 +83,12 @@ public class MetricsAggregatorImpl implements MetricsAggregator {
         if (metrics == null) {
             metrics = initializeMetrics(serviceName);
             metricsRepository.saveMetrics(metrics);
+            return metrics;
+        }
+        
+        if (!metrics.getLatencies().isEmpty()) {
+            LatencyStats latencyStats = latencyAnalyzer.analyzeLatency(metrics);
+            metrics.setLatencyStats(latencyStats);
         }
         
         return metrics;
@@ -94,6 +109,16 @@ public class MetricsAggregatorImpl implements MetricsAggregator {
                 .failedRequests(0)
                 .retryCount(0)
                 .errorRate(0.0)
+                .latencyStats(LatencyStats.builder()
+                        .p50(0)
+                        .p95(0)
+                        .p99(0)
+                        .mean(0)
+                        .standardDeviation(0)
+                        .min(0)
+                        .max(0)
+                        .sampleSize(0)
+                        .build())
                 .lastUpdated(now)
                 .windowStart(now)
                 .windowEnd(now.plusSeconds(config.getEvaluationWindowSeconds()))
